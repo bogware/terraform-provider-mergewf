@@ -22,7 +22,7 @@ Each resource supports `terraform import`. See its reference or `examples/resour
 | Skill configuration or enablement | Skill slug |
 | Skill person grant | `slug/person_id` |
 
-Person and skill configuration resources adopt existing objects when applied or imported. They do not create people or upload bundles. Destroy relinquishes management without deleting the objects. Organization policy removal also leaves the remote policy in place.
+Person and skill configuration resources adopt existing objects when applied or imported. They do not create people or upload bundles. Destroy relinquishes management without deleting the objects. Destroying a person resource does not reactivate a person deactivated through `active = false`. Organization policy removal also leaves the remote policy in place.
 
 ## Refresh, drift, and deletion
 
@@ -38,6 +38,8 @@ Omitting an optional resource attribute accepts the remote value. This lets impo
 
 When a global skill is disabled, the API returns no active reach. The provider retains configured scope and recipient lists locally for the next enable operation. Only enablement status can be refreshed while disabled. Importing a disabled skill cannot recover a previously configured reach; supply it in configuration before enabling.
 
+A person's `active` attribute is derived from the API `status`: only `DEACTIVATED` reads as `false`, so invited people are active. Changing it calls the deactivate or reactivate endpoint. When an apply both changes status and edits name or role, reactivation runs before the edit and deactivation runs after it. Editing a person who stays deactivated sends the edit to a deactivated person. Omit `active` to leave the status unmanaged, and do not set it for people whose `source` is `IDP`; their status belongs to the identity provider.
+
 Tool blocks have no update operation. Attribute changes replace the block. Use `lifecycle { create_before_destroy = true }` to request the new block before deleting the previous one.
 
 ## Reading data
@@ -50,4 +52,4 @@ Pagination stops at the end of the collection. A repeated cursor, a SCIM page th
 
 Organization API keys authenticate only `/api/v1` requests; SCIM tokens authenticate only `/scim/v2` requests. Credentials are never put in URLs or logs. Raw error bodies are not included in diagnostics because servers may echo submitted personal data. HTTP status and the operation identify the failing request.
 
-Requests have a 60-second timeout and honor Terraform cancellation. GET requests retry bounded rate-limit and transient gateway failures. Mutations are never automatically retried. Redirects are rejected. No live tenant test is part of the default test suite.
+Requests have a 60-second timeout and honor Terraform cancellation. GET requests retry bounded rate-limit and transient gateway failures. Mutations are never automatically retried. Redirects are rejected. No live tenant test is part of the default test suite; see [live acceptance testing](acceptance-testing.md) for the opt-in tests.

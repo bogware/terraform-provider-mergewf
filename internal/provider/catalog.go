@@ -14,6 +14,9 @@ type field struct {
 	Name, APIName, ReadPath string
 	Node                    *apispec.Schema
 	Required, Replace, Path bool
+	// Virtual fields are not sent in request bodies; the resource derives and
+	// applies them through dedicated endpoints.
+	Virtual bool
 }
 type resourceSpec struct {
 	Name, Description, Route, CreateRoute, CreateMethod, UpdateMethod, DeleteMethod string
@@ -61,6 +64,12 @@ func pathField(name string) field {
 	return field{Name: name, APIName: name, Node: &apispec.Schema{Type: "string", MinLength: intPtr(1)}, Required: true, Replace: true, Path: true}
 }
 func intPtr(v int) *int { return &v }
+
+// activeField maps a person's status onto a declarative boolean. INVITED and
+// ACTIVE people are both active; only DEACTIVATED is inactive.
+func activeField() field {
+	return field{Name: "active", APIName: "active", ReadPath: "status", Virtual: true, Node: &apispec.Schema{Type: "boolean", Description: "Whether the person is active. `false` deactivates the person and `true` reactivates a deactivated person. Read as `false` only when the API status is `DEACTIVATED`; invited people are active. Omit to leave the status unmanaged."}}
+}
 func resources() []resourceSpec {
 	group := "/api/v1/groups"
 	block := "/api/v1/tool-access/blocks"
@@ -68,7 +77,7 @@ func resources() []resourceSpec {
 		{Name: "group", Description: "Manages a Workforce group. Import using its group ID. Manage API-created groups separately from groups owned by an identity provider.", Route: group + "/{id}", CreateRoute: group, CreateMethod: "POST", UpdateMethod: "PATCH", DeleteMethod: "DELETE", IDField: "id", Fields: bodyFields(group, "post", false)},
 		{Name: "group_member", Description: "Manages one group membership without taking ownership of other members. Import as group_id/user_id.", Route: group + "/{group_id}/members/{user_id}", CreateRoute: group + "/{group_id}/members", CreateMethod: "POST", DeleteMethod: "DELETE", Kind: "member", ListRoute: group + "/{group_id}/members", MatchField: "user_id", ImportFields: []string{"group_id", "user_id"}, Fields: []field{pathField("group_id"), pathField("user_id")}},
 		{Name: "tool_access_block", Description: "Manages an organization tool block. Changes replace the block; use create_before_destroy to avoid a gap in enforcement. Import using the block ID.", Route: block + "/{id}", CreateRoute: block, CreateMethod: "POST", DeleteMethod: "DELETE", IDField: "id", ListRoute: block, MatchField: "id", Fields: bodyFields(block, "post", true)},
-		{Name: "person", Description: "Manages the name and role of an existing person. person_id must already exist; this resource does not invite or provision a person. Destroy relinquishes management and leaves the person unchanged. Import using the person ID.", Route: "/api/v1/persons/{person_id}", CreateRoute: "/api/v1/persons/{person_id}", CreateMethod: "PATCH", UpdateMethod: "PATCH", Kind: "adopt", ImportFields: []string{"person_id"}, Fields: append([]field{pathField("person_id")}, bodyFields("/api/v1/persons/{person_id}", "patch", false)...)},
+		{Name: "person", Description: "Manages the name, role, and active status of an existing person. person_id must already exist; this resource does not invite or provision a person. Do not set active for people provisioned by an identity provider (source IDP); manage their status through SCIM or the identity provider instead. Destroy relinquishes management and leaves the person, including their status, unchanged. Import using the person ID.", Route: "/api/v1/persons/{person_id}", CreateRoute: "/api/v1/persons/{person_id}", CreateMethod: "PATCH", UpdateMethod: "PATCH", Kind: "adopt", ImportFields: []string{"person_id"}, Fields: append(append([]field{pathField("person_id")}, bodyFields("/api/v1/persons/{person_id}", "patch", false)...), activeField())},
 	}
 	for _, subject := range []string{"group", "user", "organization"} {
 		route := "/api/v1/tool-access/organization"

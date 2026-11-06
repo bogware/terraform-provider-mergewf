@@ -102,11 +102,14 @@ type resourceFixture struct {
 	spec     resourceSpec
 	object   map[string]any
 	sequence int
+	commands map[string]int
+	requests []string
 }
 
 func (f *resourceFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.requests = append(f.requests, r.Method+" "+r.URL.Path)
 	w.Header().Set("Content-Type", "application/json")
 	want := "Bearer fixture-key"
 	if strings.HasPrefix(r.URL.Path, "/scim/") {
@@ -137,6 +140,24 @@ func (f *resourceFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(f.object)
 		return
 	}
+	if f.spec.Name == "person" && r.Method == "POST" {
+		command := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+		if f.object == nil || (command != "deactivate" && command != "reactivate") {
+			w.WriteHeader(404)
+			return
+		}
+		if f.commands == nil {
+			f.commands = map[string]int{}
+		}
+		f.commands[command]++
+		if command == "deactivate" {
+			f.object["status"] = "DEACTIVATED"
+		} else {
+			f.object["status"] = "ACTIVE"
+		}
+		json.NewEncoder(w).Encode(f.object)
+		return
+	}
 	if r.Method == "DELETE" {
 		f.object = nil
 		w.WriteHeader(204)
@@ -149,6 +170,9 @@ func (f *resourceFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if f.object == nil {
 		f.sequence++
 		f.object = map[string]any{"id": fmt.Sprintf("fixture-%d", f.sequence)}
+		if f.spec.Name == "person" {
+			f.object["status"] = "ACTIVE"
+		}
 	}
 	switch f.spec.Kind {
 	case "member":
@@ -183,6 +207,86 @@ func (f *resourceFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	json.NewEncoder(w).Encode(f.object)
+}
+
+func personSpec(t *testing.T) resourceSpec {
+	for _, spec := range resources() {
+		if spec.Name == "person" {
+			return spec
+		}
+	}
+	t.Fatal("person resource missing")
+	return resourceSpec{}
+}
+
+// TestFixturePersonActive covers deactivation, reactivation, drift, omission,
+// and invited people for the person active attribute.
+func TestFixturePersonActive(t *testing.T) {
+	fixture := &resourceFixture{t: t, spec: personSpec(t), object: map[string]any{"id": "person-1", "name": "Person", "role": "MEMBER", "status": "ACTIVE"}}
+	server := httptest.NewServer(fixture)
+	defer server.Close()
+	config := func(body string) string {
+		return fmt.Sprintf("provider \"mergewf\" {\napi_key = \"fixture-key\"\nbase_url = %q\n}\nresource \"mergewf_person\" \"test\" {\nperson_id = \"person-1\"\n%s\n}\n", server.URL, body)
+	}
+	expect := func(deactivations, reactivations int, status string) resource.TestCheckFunc {
+		return func(*terraform.State) error {
+			fixture.mu.Lock()
+			defer fixture.mu.Unlock()
+			if fixture.commands["deactivate"] != deactivations || fixture.commands["reactivate"] != reactivations {
+				return fmt.Errorf("commands=%v, want deactivate=%d reactivate=%d", fixture.commands, deactivations, reactivations)
+			}
+			if fixture.object["status"] != status {
+				return fmt.Errorf("status=%v, want %s", fixture.object["status"], status)
+			}
+			return nil
+		}
+	}
+	// before checks that the most recent first request preceded the most recent second request.
+	before := func(first, second string) resource.TestCheckFunc {
+		return func(*terraform.State) error {
+			fixture.mu.Lock()
+			defer fixture.mu.Unlock()
+			a, b := -1, -1
+			for i, request := range fixture.requests {
+				if request == first {
+					a = i
+				}
+				if request == second {
+					b = i
+				}
+			}
+			if a < 0 || b < 0 || a > b {
+				return fmt.Errorf("want %q before %q in %v", first, second, fixture.requests)
+			}
+			return nil
+		}
+	}
+	patch, deactivate, reactivate := "PATCH /api/v1/persons/person-1", "POST /api/v1/persons/person-1/deactivate", "POST /api/v1/persons/person-1/reactivate"
+	setStatus := func(status string) func() {
+		return func() { fixture.mu.Lock(); defer fixture.mu.Unlock(); fixture.object["status"] = status }
+	}
+	address := "mergewf_person.test"
+	resource.UnitTest(t, resource.TestCase{ProtoV6ProviderFactories: factories, Steps: []resource.TestStep{
+		{Config: config(`active = false`), Check: resource.ComposeTestCheckFunc(resource.TestCheckResourceAttr(address, "active", "false"), expect(1, 0, "DEACTIVATED"), before(patch, deactivate))},
+		{Config: config(`active = false`), PlanOnly: true},
+		{ResourceName: address, ImportState: true, ImportStateId: "person-1", ImportStateVerify: true},
+		// Renaming and reactivating together reactivates before editing.
+		{Config: config("active = true\nname = \"Renamed\""), Check: resource.ComposeTestCheckFunc(resource.TestCheckResourceAttr(address, "active", "true"), resource.TestCheckResourceAttr(address, "name", "Renamed"), expect(1, 1, "ACTIVE"), before(reactivate, patch))},
+		// Out-of-band deactivation is drift that apply corrects.
+		{PreConfig: setStatus("DEACTIVATED"), Config: config("active = true\nname = \"Renamed\""), Check: expect(1, 2, "ACTIVE")},
+		// Omitting active leaves the status unmanaged.
+		{PreConfig: setStatus("DEACTIVATED"), Config: config(`name = "Unmanaged"`), Check: resource.ComposeTestCheckFunc(resource.TestCheckResourceAttr(address, "active", "false"), expect(1, 2, "DEACTIVATED"))},
+		// Invited people are active; no reactivation is attempted.
+		{PreConfig: setStatus("INVITED"), Config: config(`active = true`), Check: resource.ComposeTestCheckFunc(resource.TestCheckResourceAttr(address, "active", "true"), expect(1, 2, "INVITED"))},
+		{Config: config(`active = true`), PlanOnly: true},
+	}, CheckDestroy: func(*terraform.State) error {
+		fixture.mu.Lock()
+		defer fixture.mu.Unlock()
+		if fixture.object == nil || fixture.object["status"] != "INVITED" {
+			return fmt.Errorf("destroy changed the person: %v", fixture.object)
+		}
+		return nil
+	}})
 }
 
 func TestFixtureDriftAndRemoteDeletion(t *testing.T) {
