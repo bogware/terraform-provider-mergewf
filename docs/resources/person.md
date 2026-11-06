@@ -3,12 +3,12 @@
 page_title: "mergewf_person Resource - mergewf"
 subcategory: ""
 description: |-
-  Manages the name and role of an existing person. person_id must already exist; this resource does not invite or provision a person. Destroy relinquishes management and leaves the person unchanged. Import using the person ID.
+  Manages the name, role, and active status of an existing person. person_id must already exist; this resource does not invite or provision a person. Do not set active for people provisioned by an identity provider (source IDP); manage their status through SCIM or the identity provider instead. Destroy relinquishes management and leaves the person, including their status, unchanged. Import using the person ID.
 ---
 
 # mergewf_person (Resource)
 
-Manages the name and role of an existing person. person_id must already exist; this resource does not invite or provision a person. Destroy relinquishes management and leaves the person unchanged. Import using the person ID.
+Manages the name, role, and active status of an existing person. person_id must already exist; this resource does not invite or provision a person. Do not set active for people provisioned by an identity provider (source IDP); manage their status through SCIM or the identity provider instead. Destroy relinquishes management and leaves the person, including their status, unchanged. Import using the person ID.
 
 ## Example Usage
 
@@ -17,6 +17,7 @@ resource "mergewf_person" "example" {
   person_id = "22222222-2222-4222-8222-222222222222"
   name      = "Alex Example"
   role      = "MEMBER"
+  active    = true
 }
 ```
 
@@ -29,6 +30,7 @@ resource "mergewf_person" "example" {
 
 ### Optional
 
+- `active` (Boolean) Derived from API field `status`. Whether the person is active. `false` deactivates the person and `true` reactivates a deactivated person. Read as `false` only when the API status is `DEACTIVATED`; invited people are active. Omit to leave the status unmanaged.
 - `name` (String) API field `name`. Omit to accept the server value; use an explicit empty collection to clear a collection. Minimum length: 1. Maximum length: 200.
 - `role` (String) API field `role`. Omit to accept the server value; use an explicit empty collection to clear a collection. Allowed values: `ADMIN`, `MEMBER`.
 

@@ -32,8 +32,10 @@ func APICoverage() map[string]string {
 		}
 	}
 	exclude := func(method, route, reason string) { result[OperationKey(method, route)] = "Excluded: " + reason }
-	exclude("POST", "/api/v1/persons/{person_id}/deactivate", "One-time person status command; use SCIM active for declarative provisioning.")
-	exclude("POST", "/api/v1/persons/{person_id}/reactivate", "One-time person status command; use SCIM active for declarative provisioning.")
+	// The person resource applies its active attribute through these commands.
+	for _, command := range []string{"deactivate", "reactivate"} {
+		result[OperationKey("POST", "/api/v1/persons/{person_id}/"+command)] = "Resource: mergewf_person"
+	}
 	exclude("POST", "/api/v1/invites", "Sending invitations is a transient workflow; accepted or expired invitations should not be recreated by refresh.")
 	exclude("DELETE", "/api/v1/invites/{invite_id}", "Invitation workflow is not managed as persistent Terraform state.")
 	exclude("POST", "/api/v1/invites/{invite_id}/resend", "Resending email is an imperative action.")

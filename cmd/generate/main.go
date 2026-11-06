@@ -37,7 +37,7 @@ provider "mergewf" {}
 		"group":                           `name = "Engineering"`,
 		"group_member":                    "group_id = \"11111111-1111-4111-8111-111111111111\"\nuser_id = \"22222222-2222-4222-8222-222222222222\"",
 		"tool_access_block":               "connector = \"github\"\ntool_class = \"DESTRUCTIVE\"\nreason = \"Prevent destructive GitHub operations\"\nlifecycle { create_before_destroy = true }",
-		"person":                          "person_id = \"22222222-2222-4222-8222-222222222222\"\nname = \"Alex Example\"\nrole = \"MEMBER\"",
+		"person":                          "person_id = \"22222222-2222-4222-8222-222222222222\"\nname = \"Alex Example\"\nrole = \"MEMBER\"\nactive = true",
 		"group_tool_access_policy":        "group_id = \"11111111-1111-4111-8111-111111111111\"\nmode = \"CUSTOM\"\nrules = [{action = \"ALLOW\", connector = \"github\", tool_class = \"READ_ONLY\"}]",
 		"user_tool_access_policy":         "user_id = \"22222222-2222-4222-8222-222222222222\"\nmode = \"CUSTOM\"\nrules = [{action = \"ALLOW\", connector = \"github\", tool_class = \"READ_ONLY\"}]",
 		"organization_tool_access_policy": "mode = \"NONE\"\nrules = []",

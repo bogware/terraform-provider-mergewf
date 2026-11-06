@@ -53,18 +53,18 @@ All **26 documented GET endpoints** have data sources, including people, invitat
 
 Resources expose typed configuration attributes and return additional API fields in `result_json`. Omitted optional resource attributes accept the server value. Supply explicit empty lists to clear collections. API responses, including personal data, are stored in Terraform state; protect the state backend.
 
-See [resource reference](docs/resources), [data source reference](docs/data-sources), [examples](examples), [lifecycle behavior](docs/guides/lifecycle.md), and the complete [API coverage report](docs/guides/api-coverage.md).
+See [resource reference](docs/resources), [data source reference](docs/data-sources), [examples](examples), [lifecycle behavior](docs/guides/lifecycle.md), [live acceptance testing](docs/guides/acceptance-testing.md), and the complete [API coverage report](docs/guides/api-coverage.md).
 
 ## Lifecycle boundaries
 
-- `mergewf_person` edits an existing person; use SCIM to provision identities. Destroy leaves the person unchanged.
+- `mergewf_person` edits an existing person's name, role, and `active` status; use SCIM to provision identities. Destroy leaves the person, including status, unchanged. Do not set `active` for identity-provider-managed people.
 - `mergewf_skill_configuration` edits an existing authored skill. Upload its bundle first; destroy leaves the skill unchanged.
 - Group and user tool policies own all rules for their subject. Destroy deletes the policy and restores inherited access. Organization policy destroy leaves the remote policy unchanged because there is no delete endpoint.
 - Group membership and skill person grants manage one relationship each, without owning other relationships.
 - Tool block changes require replacement. Use `create_before_destroy` to avoid removing a block before its replacement exists.
 - Do not manage an identity-provider-owned SCIM object concurrently from Terraform.
 
-Group manager writes require `manage_roles`, which organization API keys cannot hold. Skill upload/version request fields are absent from the published API contract, so the provider does not guess their multipart format. Invitations, reviews, and other one-time commands are deliberately excluded. The coverage report lists every exclusion and its reason.
+Group manager writes require `manage_roles`, which organization API keys cannot hold. Skill upload/version request fields are absent from the published API contract, so the provider does not guess their multipart format. Invitations, reviews, and other one-time commands are deliberately excluded. Person deactivation and reactivation are exposed declaratively through `mergewf_person.active`. The coverage report lists every exclusion and its reason.
 
 ## Build and test
 
@@ -78,7 +78,7 @@ go run ./cmd/check-api-coverage
 go -C tools generate -tags generate .
 ```
 
-`go test ./...` runs the real Terraform CLI against local HTTP fixtures. It needs no Merge credentials and performs no live Merge operations. The API coverage checker downloads only the public specification; `-offline` checks the committed snapshot. Generation creates examples, exports protocol schemas directly (including on Windows), and runs tfplugindocs from the scaffolding's separate tools module.
+`go test ./...` runs the real Terraform CLI against local HTTP fixtures. It needs no Merge credentials and performs no live Merge operations. Opt-in acceptance tests against a real tenant run only when `TF_ACC` is set; see [live acceptance testing](docs/guides/acceptance-testing.md). The API coverage checker downloads only the public specification; `-offline` checks the committed snapshot. Generation creates examples, exports protocol schemas directly (including on Windows), and runs tfplugindocs from the scaffolding's separate tools module.
 
 Build a local plugin on Windows:
 

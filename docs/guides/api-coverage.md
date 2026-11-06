@@ -9,7 +9,7 @@ description: |-
 
 Source: [Merge Workforce OpenAPI](https://docs.merge.dev/openapi/workforce-api.json).
 
-49 implemented operations; 18 deliberate exclusions. Every documented GET endpoint has a data source. The checker also detects changes to parameters and JSON request schemas for implemented operations. The checked-in contract was retrieved on November 5, 2026.
+51 implemented operations; 16 deliberate exclusions. Every documented GET endpoint has a data source. The checker also detects changes to parameters and JSON request schemas for implemented operations. The checked-in contract was retrieved on November 5, 2026.
 
 | Operation | Implementation or reason |
 | --- | --- |
@@ -62,8 +62,8 @@ Source: [Merge Workforce OpenAPI](https://docs.merge.dev/openapi/workforce-api.j
 | `POST /api/v1/groups` | Resource: mergewf_group |
 | `POST /api/v1/invites/{invite_id}/resend` | Excluded: Resending email is an imperative action. |
 | `POST /api/v1/invites` | Excluded: Sending invitations is a transient workflow; accepted or expired invitations should not be recreated by refresh. |
-| `POST /api/v1/persons/{person_id}/deactivate` | Excluded: One-time person status command; use SCIM active for declarative provisioning. |
-| `POST /api/v1/persons/{person_id}/reactivate` | Excluded: One-time person status command; use SCIM active for declarative provisioning. |
+| `POST /api/v1/persons/{person_id}/deactivate` | Resource: mergewf_person |
+| `POST /api/v1/persons/{person_id}/reactivate` | Resource: mergewf_person |
 | `POST /api/v1/skills/{slug}/review` | Excluded: Review decisions are an imperative workflow. |
 | `POST /api/v1/skills/{slug}/versions/{version_id}/promote` | Excluded: Version promotion is an imperative workflow. |
 | `POST /api/v1/skills/{slug}/versions` | Excluded: The published reference omits the version-upload request contract. |

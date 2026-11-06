@@ -62,7 +62,9 @@ func (r *apiResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 	}
 	for _, f := range r.spec.Fields {
 		description := "API field `" + f.APIName + "`."
-		if !f.Required {
+		if f.Virtual {
+			description = "Derived from API field `" + f.ReadPath + "`."
+		} else if !f.Required {
 			description += " Omit to accept the server value; use an explicit empty collection to clear a collection."
 		}
 		attrs[f.Name] = resourceAttribute(f.Node, f.Required, !f.Required, f.Replace, description)
@@ -142,7 +144,7 @@ func lookup(obj map[string]any, key string) any {
 func (r *apiResource) body(values map[string]attr.Value) map[string]any {
 	body := map[string]any{}
 	for _, f := range r.spec.Fields {
-		if f.Path {
+		if f.Path || f.Virtual {
 			continue
 		}
 		v := values[f.Name]
@@ -239,6 +241,11 @@ func (r *apiResource) save(ctx context.Context, state *tfsdk.State, prior types.
 		if r.spec.Kind == "enablement" && f.Name == "is_enabled" {
 			data = lookup(obj, "reach.scope") != nil
 		}
+		if f.Name == "active" && f.Virtual {
+			if status, ok := data.(string); ok {
+				data = status != "DEACTIVATED"
+			}
+		}
 		v, err := terraformValue(ctx, f.Node, data, values[f.Name])
 		if err != nil {
 			d.AddError("Invalid API response", f.Name+": "+err.Error())
@@ -285,10 +292,39 @@ func (r *apiResource) write(ctx context.Context, plan types.Object, create bool,
 	if r.spec.Kind == "grant" {
 		body = nil
 	}
+	active, manageStatus := values["active"].(types.Bool)
+	// Only the person resource's virtual active field maps to status commands;
+	// SCIM users send active in their request body.
+	manageStatus = manageStatus && r.spec.Name == "person" && !active.IsNull() && !active.IsUnknown()
+	deactivated := false
+	if manageStatus {
+		// Reactivate before editing and deactivate after editing, so the
+		// PATCH never targets a deactivated person.
+		current, err := r.client.Do(ctx, "GET", p, nil, nil)
+		if err != nil {
+			d.AddError("Unable to read person status", err.Error())
+			return
+		}
+		currentObj, _ := current.(map[string]any)
+		deactivated = currentObj["status"] == "DEACTIVATED"
+		if active.ValueBool() && deactivated {
+			if _, err := r.client.Do(ctx, "POST", p+"/reactivate", nil, nil); err != nil {
+				d.AddError("Unable to reactivate person", err.Error())
+				return
+			}
+		}
+	}
 	data, err := r.client.Do(ctx, method, p, nil, body)
 	if err != nil {
 		d.AddError("Unable to write Workforce resource", err.Error())
 		return
+	}
+	if manageStatus && !active.ValueBool() && !deactivated {
+		data, err = r.client.Do(ctx, "POST", p+"/deactivate", nil, nil)
+		if err != nil {
+			d.AddError("Unable to deactivate person", err.Error())
+			return
+		}
 	}
 	obj, _ := data.(map[string]any)
 	if obj == nil {
