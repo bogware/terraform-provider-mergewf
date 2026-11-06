@@ -1,0 +1,1 @@
+terraform import mergewf_scim_group.example RESOURCE_ID

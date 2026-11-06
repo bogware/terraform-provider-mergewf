@@ -1,0 +1,7 @@
+data "mergewf_user_tool_access_policy" "example" {
+  user_id = "11111111-1111-4111-8111-111111111111"
+}
+
+output "result" {
+  value = jsondecode(data.mergewf_user_tool_access_policy.example.result_json)
+}

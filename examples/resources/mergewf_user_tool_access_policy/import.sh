@@ -1,0 +1,1 @@
+terraform import mergewf_user_tool_access_policy.example USER_ID

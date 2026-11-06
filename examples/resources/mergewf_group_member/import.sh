@@ -1,0 +1,1 @@
+terraform import mergewf_group_member.example GROUP_ID/USER_ID

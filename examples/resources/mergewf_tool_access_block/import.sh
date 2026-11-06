@@ -1,0 +1,1 @@
+terraform import mergewf_tool_access_block.example RESOURCE_ID

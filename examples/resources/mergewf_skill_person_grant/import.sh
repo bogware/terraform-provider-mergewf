@@ -1,0 +1,1 @@
+terraform import mergewf_skill_person_grant.example SKILL_SLUG/PERSON_ID

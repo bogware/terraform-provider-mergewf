@@ -1,0 +1,12 @@
+.cache/
+bin/
+dist/
+*.exe
+*.test
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+coverage.out

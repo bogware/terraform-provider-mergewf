@@ -1,0 +1,1 @@
+terraform import mergewf_group.example RESOURCE_ID

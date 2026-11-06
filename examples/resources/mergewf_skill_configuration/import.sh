@@ -1,0 +1,1 @@
+terraform import mergewf_skill_configuration.example SKILL_SLUG
