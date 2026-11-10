@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 (November 9, 2026)
 
 - Initial Merge Workforce provider based on HashiCorp Terraform Plugin Framework scaffolding.
 - Twelve resources for groups, membership, existing people, tool access, existing skill configuration, skill enablement and person grants, and SCIM provisioning.
