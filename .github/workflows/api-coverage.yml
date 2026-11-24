@@ -1,8 +1,6 @@
 name: API coverage
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 12 * * 1'
 permissions:
   contents: read
 jobs:
@@ -13,4 +11,4 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - run: go run ./cmd/check-api-coverage
+      - run: go run ./cmd/check-api-coverage -offline
